@@ -1,0 +1,186 @@
+---
+title: Sebastian Marin - Problem set 4
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Problem Set 4
+
+Para resolver este problem set, deberá poner en práctica los conocimientos adquiridos en la clase de webscraping y gestionar la información GIS que extraerá de internet. Finalmente, empleará R-Markdown para generar un HTML que posteriormente podrá publicar en su página de GitHub.
+
+```{r}
+# Cargar las librerías necesarias
+library(rvest)
+library(data.table)
+library(sf)
+library(ggplot2)
+library(viridis)
+
+```
+
+## Extraer la información de internet (50%)
+
+Primero, debe dirigirse a la página <https://eduard-martinez.github.io/pset-4.html> y examinar su contenido.
+
+### 1.1 Obtener las URL
+
+Cree un objeto llamdo url_full que almacene el vector de URLs contenidas en la página ../pset-4.html
+
+```{r}
+
+# Especificar la URL de la página
+page_url <- "https://eduard-martinez.github.io/pset-4.html"
+
+# Leer el contenido de la página
+page_content <- read_html(page_url)
+
+# Extraer todas las URL contenidas en la página
+url_full <- page_content %>%
+  html_nodes("a") %>%
+  html_attr("href")
+
+# Mostrar las URL obtenidas
+print(url_full)
+
+```
+
+### 1.2 Filtrar URL:
+
+Del objeto url_full mantenga únicamente las URLs que contengan la palabra propiedad, guarde el resultado en un objeto llamado url_subset.
+
+```{r}
+# Filtrar las URLs que contienen la palabra "propiedad"
+url_subset <- url_full[grepl("propiedad", url_full)]
+
+# Mostrar las URLs filtradas
+print(url_subset)
+```
+
+### 1.3 Extraer las tablas de los HTML:
+
+Utilice un bucle o función que itere sobre todos los elementos del objeto url_subset. Para cada URL, extraiga de su correspondiente HTML la tabla que contiene la información de las coordenadas y el precio de la propiedad. Almacene el resultado de este loop en un objeto tipo lista llamado lista_tablas.
+
+```{r}
+
+# Inicializar una lista para almacenar las tablas
+lista_tablas <- list()
+
+# Iterar sobre las URLs para extraer las tablas
+for (i in seq_along(url_subset)) {
+  # Leer la página de cada URL
+  page <- read_html(url_subset[i])
+  
+  # Extraer la tabla
+  table <- page %>%
+    html_node("table") %>%
+    html_table()
+  
+  # Agregar la tabla a la lista
+  lista_tablas[[i]] <- table
+}
+
+
+# Mostrar las tablas obtenidas
+print(lista_tablas)
+```
+
+### 1.4 Preparar información:
+
+Utilice la función rbindlist del paquete data.table para convertir la lista lista_tablas en un dataframe. Almacene este resultado en un objeto llamado db_house, que contendrá toda la información de las tablas.
+
+```{r}
+# Convertir la lista de tablas en un dataframe
+db_house <- rbindlist(lista_tablas, fill = TRUE)
+
+# Mostrar el dataframe resultante
+print(db_house)
+```
+
+## Manipular la información GIS (50%)
+
+### 2.1 Cree un objeto sf
+
+Utilice la función st_as_sf del paquete sf para convertir el objeto db_house en un SimpleFeature de tipo punto. Nombre este nuevo objeto sf_house.
+
+```{r}
+# Convertir el dataframe en un SimpleFeature de tipo punto
+sf_house <- st_as_sf(db_house, coords = c("lon", "lat"), crs = 4326)
+
+# Mostrar el objeto sf
+print(sf_house)
+```
+
+### 2.2 Pintar mapa
+
+Utilice la función geom_sf de la librería ggplot2 para crear un mapa que visualice los puntos almacenados en el objeto sf_house. Utilice el valor de la vivienda como escala de colores, aplicando las paletas de colores de la función scale_fill_viridis. Una vez generado el mapa, exporte este objeto en formato .pdf.
+
+```{r}
+# Crear un mapa utilizando ggplot2 y geom_sf
+map <- ggplot(data = sf_house) +
+  geom_sf(aes(color = price), size = 2) +
+  scale_color_viridis() +
+  labs(title = "Mapa de Propiedades",
+       subtitle = "Precio de las propiedades",
+       color = "price") +
+  theme_minimal()
+
+# Guardar el mapa en formato .pdf
+ggsave("mapa_propiedades.pdf", plot = map, width = 8, height = 6)
+
+# Mostrar el mapa
+print(map)
+```
+
+#### Análisis del Mapa
+
+Las propiedades se encuentran principalmente en una zona específica, delimitada por coordenadas que van de 4.45°N a 4.80°N de latitud y de 74.05°W a 74.20°W de longitud. Los precios de las propiedades están representados con una escala de colores, donde los tonos más claros (amarillo) indican precios más altos y los tonos más oscuros (púrpura) indican precios más bajos. Observamos que las propiedades con precios más altos están más dispersas, mientras que las propiedades con precios más bajos están más concentradas.
+
+La alta concentración de puntos en tonos oscuros revela que la mayoría de las propiedades tienen precios más bajos. En contraste, las propiedades con precios elevados están menos concentradas, lo que sugiere que estos altos precios podrían estar relacionados con características particulares de ciertas propiedades o ubicaciones privilegiadas.
+
+
+### Analisis Adicionales
+```{r}
+# Convertir 'property_type' a factor
+sf_house$property_type <- as.factor(sf_house$property_type)
+
+# Crear un mapa utilizando ggplot2 y geom_sf coloreando por 'property_type'
+map <- ggplot(data = sf_house) +
+  geom_sf(aes(color = property_type), size = 2) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "Mapa de Propiedades",
+       subtitle = "Tipo de las propiedades",
+       color = "Tipo de Propiedad") +
+  theme_minimal()
+
+# Guardar el mapa en formato .pdf
+ggsave("mapa_propiedades_tipo.pdf", plot = map, width = 8, height = 6)
+
+# Mostrar el mapa
+print(map)
+
+rmarkdown::render("C:/Users/sebastian/Downloads/Problemset4_SebastianMarin.Rmd")
+
+```
+
+Distribución de los tipos de propiedades:
+
+Tipos de Propiedades:
+
+Apartamentos (puntos morados): Son el tipo de propiedad más común y están ampliamente distribuidos por toda la zona estudiada, con una alta concentración en el centro.
+
+Casas (puntos rojos): También están distribuidas de manera considerable, aunque en menor cantidad que los apartamentos.
+
+Depósitos (puntos azules claros): Están presentes pero en una cantidad mucho menor y están más dispersos.
+
+Local Comercial y Oficina (puntos verdes y turquesa): Estos tipos de propiedades parecen estar ubicados en áreas específicas, lo que podría indicar zonas comerciales o de oficinas.
+
+Lotes y Parqueaderos (puntos verdes claros y amarillos): Se encuentran en menor cantidad y también muestran cierta dispersión.
+Concentración de Propiedades:
+
+
+
+
+
